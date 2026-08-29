@@ -41,7 +41,6 @@ spec:
 
     - name: railpack-build
       script:
-        # Используем официальный BuildKit от Docker/Moby
         image: moby/buildkit:latest
         securityContext:
           privileged: true
@@ -49,13 +48,23 @@ spec:
         command: [sh]
         source: |
           set -e
-          echo "===> Installing curl, bash & Railpack CLI..."
-          apk add --no-cache curl bash git
+          echo "===> Installing base packages..."
+          apk add --no-cache curl bash git tar ca-certificates
 
-          # Устанавливаем официальный бинарник Railpack
-          curl -sSL https://railpack.com/install.sh | sh -s -- --bin-dir /usr/local/bin
+          echo "===> Downloading Railpack binary..."
+          ARCH=$(uname -m)
+          if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+            ASSET="arm64-unknown-linux-musl.tar.gz"
+          else
+            ASSET="x86_64-unknown-linux-musl.tar.gz"
+          fi
 
-          echo "===> Configuring BuildKit for local registry..."
+          # Скачиваем нативный мусл-бинарник Railpack с GitHub Releases
+          URL=$(curl -sSL https://api.github.com/repos/railwayapp/railpack/releases/latest | grep "browser_download_url" | grep "$ASSET" | cut -d '"' -f 4)
+          curl -sSL "$URL" | tar -xz -C /usr/local/bin
+          chmod +x /usr/local/bin/railpack
+
+          echo "===> Configuring BuildKit for local insecure registry..."
           mkdir -p /etc/buildkit
           cat <<EOF > /etc/buildkit/buildkitd.toml
           [registry."k3d-registry.localhost:5000"]
@@ -75,12 +84,12 @@ spec:
             sleep 1
           done
 
+          export BUILDKIT_HOST="tcp://127.0.0.1:1234"
+
           echo "===> Running Railpack build..."
-          railpack build \
-            --buildkit-addr tcp://127.0.0.1:1234 \
-            --tag k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}} \
-            --publish \
-            .
+          railpack build . \
+            --name k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}} \
+            --publish
         volumeMounts:
           - name: workspace
             mountPath: /workspace

@@ -53,9 +53,11 @@ spec:
           # Имя образа, который мы хотим собрать и отправить
           - "k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}}"
         env:
-          # Разрешаем пушить в наш локальный http-реестр
           - name: CNB_INSECURE_REGISTRIES
             value: "k3d-registry.localhost:5000"
+          # Говорим оркестратору, какую версию API использовать
+          - name: CNB_PLATFORM_API
+            value: "0.12"
         volumeMounts:
           - name: workspace
             mountPath: /workspace

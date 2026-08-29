@@ -37,7 +37,6 @@ spec:
 
     - name: buildpacks-build
       container:
-        # Меняем builder-jammy-base на builder-jammy-full
         image: paketobuildpacks/builder-jammy-full:latest
         securityContext:
           runAsUser: 0
@@ -45,12 +44,17 @@ spec:
         command: ["/cnb/lifecycle/creator"]
         args:
           - "-app=/workspace"
+          # Явно заставляем использовать FULL run-image, где есть libatomic
+          - "-run-image=paketobuildpacks/run-jammy-full:latest"
           - "k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}}"
         env:
           - name: CNB_INSECURE_REGISTRIES
             value: "k3d-registry.localhost:5000"
           - name: CNB_PLATFORM_API
             value: "0.12"
+          # Флаг для Node.js buildpack: заставляет встроить нужные C++ зависимости для ARM64
+          - name: BP_NODE_PROJECT_PATH
+            value: "."
         volumeMounts:
           - name: workspace
             mountPath: /workspace

@@ -32,36 +32,32 @@ spec:
         image: alpine/git:latest
         workingDir: /workspace
         command: [sh, -ebc]
-        script: |
+        source: |
           git clone {{workflow.parameters.repo_url}} .
           git checkout {{workflow.parameters.commit_sha}}
         volumeMounts:
           - name: workspace
             mountPath: /workspace
 
-    # ШАГ СБОРКИ ЧЕРЕЗ RAILPACK
+    # ИСПОЛЬЗУЕМ ШАБЛОН SCRIPT ДЛЯ НАДЕЖНОГО ЗАПУСКА СКИПТОВ
     - name: railpack-build
-      container:
-        # Используем официальный образ с Railpack & BuildKit
+      script:
         image: ghcr.io/railwayapp/railpack:latest
         securityContext:
-          privileged: true # Требуется для монтирования файловой системы BuildKit
+          privileged: true
         workingDir: /workspace
-        command: ["/bin/sh", "-c"]
-        args:
-          - |
-            # 1. Запускаем локальный BuildKit daemon в фоновом режиме
-            buildkitd --addr tcp://127.0.0.1:1234 &
-            
-            # Ждем готовности socket
-            sleep 3
-            
-            # 2. Собираем и сразу отправляем образ в наш локальный k3d registry
-            railpack build \
-              --buildkit-addr tcp://127.0.0.1:1234 \
-              --tag k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}} \
-              --publish \
-              .
+        command: [sh]
+        source: |
+          echo "===> Starting background BuildKit daemon..."
+          buildkitd --addr tcp://127.0.0.1:1234 &
+          sleep 3
+          
+          echo "===> Running Railpack build..."
+          railpack build \
+            --buildkit-addr tcp://127.0.0.1:1234 \
+            --tag k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}} \
+            --publish \
+            .
         volumeMounts:
           - name: workspace
             mountPath: /workspace

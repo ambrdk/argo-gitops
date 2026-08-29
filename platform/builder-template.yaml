@@ -9,6 +9,7 @@ spec:
       - name: repo_url
       - name: commit_sha
       - name: app_name
+
   volumeClaimTemplates:
     - metadata:
         name: workspace
@@ -16,45 +17,51 @@ spec:
         accessModes: [ "ReadWriteOnce" ]
         resources:
           requests:
-            storage: 1Gi
+            storage: 2Gi
+
   templates:
     - name: build-pipeline
       steps:
         - - name: clone
             template: git-clone
         - - name: build
-            template: buildpacks-build
+            template: railpack-build
 
     - name: git-clone
-      container:
-        image: alpine/git:v2.36.3
-        command: [sh, -c]
-        args:
-          - git clone {{workflow.parameters.repo_url}} /workspace && cd /workspace && git checkout {{workflow.parameters.commit_sha}} || true
+      script:
+        image: alpine/git:latest
+        workingDir: /workspace
+        command: [sh, -ebc]
+        script: |
+          git clone {{workflow.parameters.repo_url}} .
+          git checkout {{workflow.parameters.commit_sha}}
         volumeMounts:
           - name: workspace
             mountPath: /workspace
 
-    - name: buildpacks-build
+    # ШАГ СБОРКИ ЧЕРЕЗ RAILPACK
+    - name: railpack-build
       container:
-        image: gcr.io/buildpacks/builder:google-22
+        # Используем официальный образ с Railpack & BuildKit
+        image: ghcr.io/railwayapp/railpack:latest
         securityContext:
-          runAsUser: 0
+          privileged: true # Требуется для монтирования файловой системы BuildKit
         workingDir: /workspace
-        command: ["/cnb/lifecycle/creator"]
+        command: ["/bin/sh", "-c"]
         args:
-          - "-app=/workspace"
-          - "k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}}"
-        env:
-          - name: CNB_INSECURE_REGISTRIES
-            value: "k3d-registry.localhost:5000"
-          - name: CNB_PLATFORM_API
-            value: "0.12"
-          # Указываем Go-клиенту Google путь к корневым сертификатам Ubuntu
-          - name: SSL_CERT_FILE
-            value: "/etc/ssl/certs/ca-certificates.crt"
-          - name: SSL_CERT_DIR
-            value: "/etc/ssl/certs"
+          - |
+            # 1. Запускаем локальный BuildKit daemon в фоновом режиме
+            buildkitd --addr tcp://127.0.0.1:1234 &
+            
+            # Ждем готовности socket
+            sleep 3
+            
+            # 2. Собираем и сразу отправляем образ в наш локальный k3d registry
+            railpack build \
+              --buildkit-addr tcp://127.0.0.1:1234 \
+              --tag k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}} \
+              --publish \
+              .
         volumeMounts:
           - name: workspace
             mountPath: /workspace

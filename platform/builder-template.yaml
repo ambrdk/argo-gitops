@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: universal-vercel-like-builder
+spec:
+  entrypoint: build-pipeline
+  arguments:
+    parameters:
+      - name: repo_url
+      - name: commit_sha
+      - name: app_name
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 1Gi
+  templates:
+    - name: build-pipeline
+      steps:
+        - - name: clone
+            template: git-clone
+        - - name: build
+            template: buildpacks-build
+
+    - name: git-clone
+      container:
+        image: alpine/git:v2.36.3
+        command: [sh, -c]
+        args:
+          - git clone {{workflow.parameters.repo_url}} /workspace && cd /workspace && git checkout {{workflow.parameters.commit_sha}} || true
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace
+
+    - name: buildpacks-build
+      container:
+        image: buildpacksio/pack:0.32.1
+        command: [sh, -c]
+        args:
+          - |
+            cd /workspace
+            # Пушим в локальный k3d registry, который мы создали через Terraform
+            pack build k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}} \
+              --builder paketobuildpacks/builder-jammy-base \
+              --trust-builder \
+              --publish
+        volumeMounts:
+          - name: workspace
+            mountPath: /workspace

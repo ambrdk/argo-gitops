@@ -59,7 +59,6 @@ spec:
             ASSET="x86_64-unknown-linux-musl.tar.gz"
           fi
 
-          # Скачиваем нативный мусл-бинарник Railpack с GitHub Releases
           URL=$(curl -sSL https://api.github.com/repos/railwayapp/railpack/releases/latest | grep "browser_download_url" | grep "$ASSET" | cut -d '"' -f 4)
           curl -sSL "$URL" | tar -xz -C /usr/local/bin
           chmod +x /usr/local/bin/railpack
@@ -75,7 +74,6 @@ spec:
           echo "===> Starting BuildKit daemon..."
           buildkitd --config /etc/buildkit/buildkitd.toml --addr tcp://127.0.0.1:1234 &
 
-          # Ожидаем готовности сокета BuildKit
           for i in $(seq 1 30); do
             if nc -z 127.0.0.1 1234 2>/dev/null; then
               echo "BuildKit daemon is ready!"
@@ -88,8 +86,7 @@ spec:
 
           echo "===> Running Railpack build..."
           railpack build . \
-            --name k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}} \
-            --publish
+            --name k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}}
         volumeMounts:
           - name: workspace
             mountPath: /workspace

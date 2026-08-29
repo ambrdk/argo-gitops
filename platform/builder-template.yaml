@@ -37,16 +37,25 @@ spec:
 
     - name: buildpacks-build
       container:
-        image: buildpacksio/pack:0.32.1
-        workingDir: /workspace # Заменяет команду 'cd /workspace'
-        command: ["pack"]
+        # Вместо pack используем сам образ строителя
+        image: paketobuildpacks/builder-jammy-base:latest
+        
+        # Важно: запускаем от имени root, чтобы получить доступ к исходникам, скачанным шагом git-clone
+        securityContext:
+          runAsUser: 0
+        workingDir: /workspace
+        
+        # Запускаем нативный оркестратор Buildpacks (без Docker-демона)
+        command: ["/cnb/lifecycle/creator"]
         args:
-          - "build"
+          - "-app=/workspace"
+          - "-cache-dir=/workspace/cache"
+          # Имя образа, который мы хотим собрать и отправить
           - "k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}}"
-          - "--builder"
-          - "paketobuildpacks/builder-jammy-base"
-          - "--trust-builder"
-          - "--publish"
+        env:
+          # Разрешаем пушить в наш локальный http-реестр
+          - name: CNB_INSECURE_REGISTRIES
+            value: "k3d-registry.localhost:5000"
         volumeMounts:
           - name: workspace
             mountPath: /workspace

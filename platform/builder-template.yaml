@@ -38,15 +38,15 @@ spec:
     - name: buildpacks-build
       container:
         image: buildpacksio/pack:0.32.1
-        command: [sh, -c]
+        workingDir: /workspace # Заменяет команду 'cd /workspace'
+        command: ["pack"]
         args:
-          - |
-            cd /workspace
-            # Пушим в локальный k3d registry, который мы создали через Terraform
-            pack build k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}} \
-              --builder paketobuildpacks/builder-jammy-base \
-              --trust-builder \
-              --publish
+          - "build"
+          - "k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}}"
+          - "--builder"
+          - "paketobuildpacks/builder-jammy-base"
+          - "--trust-builder"
+          - "--publish"
         volumeMounts:
           - name: workspace
             mountPath: /workspace

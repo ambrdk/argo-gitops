@@ -34,7 +34,7 @@ spec:
         volumeMounts:
           - name: workspace
             mountPath: /workspace
-            
+
     - name: buildpacks-build
       container:
         image: gcr.io/buildpacks/builder:google-22

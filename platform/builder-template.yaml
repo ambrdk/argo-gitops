@@ -49,7 +49,6 @@ spec:
         command: ["/cnb/lifecycle/creator"]
         args:
           - "-app=/workspace"
-          - "-cache-dir=/workspace/cache"
           # Имя образа, который мы хотим собрать и отправить
           - "k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}}"
         env:

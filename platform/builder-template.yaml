@@ -37,24 +37,18 @@ spec:
 
     - name: buildpacks-build
       container:
-        # Вместо pack используем сам образ строителя
-        image: paketobuildpacks/builder-jammy-base:latest
-        
-        # Важно: запускаем от имени root, чтобы получить доступ к исходникам, скачанным шагом git-clone
+        # Меняем builder-jammy-base на builder-jammy-full
+        image: paketobuildpacks/builder-jammy-full:latest
         securityContext:
           runAsUser: 0
         workingDir: /workspace
-        
-        # Запускаем нативный оркестратор Buildpacks (без Docker-демона)
         command: ["/cnb/lifecycle/creator"]
         args:
           - "-app=/workspace"
-          # Имя образа, который мы хотим собрать и отправить
           - "k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}}"
         env:
           - name: CNB_INSECURE_REGISTRIES
             value: "k3d-registry.localhost:5000"
-          # Говорим оркестратору, какую версию API использовать
           - name: CNB_PLATFORM_API
             value: "0.12"
         volumeMounts:

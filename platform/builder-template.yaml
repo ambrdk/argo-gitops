@@ -34,10 +34,9 @@ spec:
         volumeMounts:
           - name: workspace
             mountPath: /workspace
-
+            
     - name: buildpacks-build
       container:
-        # Современный стек Google на базе Ubuntu 22.04 (со свежими SSL-сертификатами и libatomic)
         image: gcr.io/buildpacks/builder:google-22
         securityContext:
           runAsUser: 0
@@ -51,6 +50,11 @@ spec:
             value: "k3d-registry.localhost:5000"
           - name: CNB_PLATFORM_API
             value: "0.12"
+          # Указываем Go-клиенту Google путь к корневым сертификатам Ubuntu
+          - name: SSL_CERT_FILE
+            value: "/etc/ssl/certs/ca-certificates.crt"
+          - name: SSL_CERT_DIR
+            value: "/etc/ssl/certs"
         volumeMounts:
           - name: workspace
             mountPath: /workspace

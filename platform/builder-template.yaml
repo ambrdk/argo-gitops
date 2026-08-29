@@ -37,8 +37,8 @@ spec:
 
     - name: buildpacks-build
       container:
-        # Официальный билдер от Google
-        image: gcr.io/buildpacks/builder:v1
+        # Современный стек Google на базе Ubuntu 22.04 (со свежими SSL-сертификатами и libatomic)
+        image: gcr.io/buildpacks/builder:google-22
         securityContext:
           runAsUser: 0
         workingDir: /workspace

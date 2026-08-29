@@ -39,19 +39,42 @@ spec:
           - name: workspace
             mountPath: /workspace
 
-    # ИСПОЛЬЗУЕМ ШАБЛОН SCRIPT ДЛЯ НАДЕЖНОГО ЗАПУСКА СКИПТОВ
     - name: railpack-build
       script:
-        image: ghcr.io/railwayapp/railpack:latest
+        # Используем официальный BuildKit от Docker/Moby
+        image: moby/buildkit:latest
         securityContext:
           privileged: true
         workingDir: /workspace
         command: [sh]
         source: |
-          echo "===> Starting background BuildKit daemon..."
-          buildkitd --addr tcp://127.0.0.1:1234 &
-          sleep 3
-          
+          set -e
+          echo "===> Installing curl, bash & Railpack CLI..."
+          apk add --no-cache curl bash git
+
+          # Устанавливаем официальный бинарник Railpack
+          curl -sSL https://railpack.com/install.sh | sh -s -- --bin-dir /usr/local/bin
+
+          echo "===> Configuring BuildKit for local registry..."
+          mkdir -p /etc/buildkit
+          cat <<EOF > /etc/buildkit/buildkitd.toml
+          [registry."k3d-registry.localhost:5000"]
+            http = true
+            insecure = true
+          EOF
+
+          echo "===> Starting BuildKit daemon..."
+          buildkitd --config /etc/buildkit/buildkitd.toml --addr tcp://127.0.0.1:1234 &
+
+          # Ожидаем готовности сокета BuildKit
+          for i in $(seq 1 30); do
+            if nc -z 127.0.0.1 1234 2>/dev/null; then
+              echo "BuildKit daemon is ready!"
+              break
+            fi
+            sleep 1
+          done
+
           echo "===> Running Railpack build..."
           railpack build \
             --buildkit-addr tcp://127.0.0.1:1234 \

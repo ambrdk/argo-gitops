@@ -82,11 +82,17 @@ spec:
             sleep 1
           done
 
-          export BUILDKIT_HOST="tcp://127.0.0.1:1234"
+          echo "===> Generating Railpack build plan..."
+          mkdir -p /plan
+          railpack plan . -o /plan/railpack-plan.json
 
-          echo "===> Running Railpack build with direct network push..."
-          railpack build . \
-            --output type=registry,ref=192.168.97.4:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}}
+          echo "===> Building and pushing image with buildctl..."
+          buildctl --addr tcp://127.0.0.1:1234 build \
+            --local context=. \
+            --local dockerfile=/plan \
+            --frontend=gateway.v0 \
+            --opt source=ghcr.io/railwayapp/railpack-frontend \
+            --output type=image,name=192.168.97.4:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}},push=true
         volumeMounts:
           - name: workspace
             mountPath: /workspace

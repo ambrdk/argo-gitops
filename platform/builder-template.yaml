@@ -66,7 +66,7 @@ spec:
           echo "===> Configuring BuildKit for local insecure registry..."
           mkdir -p /etc/buildkit
           cat <<EOF > /etc/buildkit/buildkitd.toml
-          [registry."k3d-registry.localhost:5000"]
+          [registry."192.168.97.4:5000"]
             http = true
             insecure = true
           EOF
@@ -86,7 +86,7 @@ spec:
 
           echo "===> Running Railpack build with direct network push..."
           railpack build . \
-            --output type=registry,ref=k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}}
+            --output type=registry,ref=192.168.97.4:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}}
         volumeMounts:
           - name: workspace
             mountPath: /workspace

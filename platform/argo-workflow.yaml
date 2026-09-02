@@ -11,6 +11,9 @@ spec:
     targetRevision: 2.0.3
     helm:
       values: |
+        workflow:
+          serviceAccount:
+            create: true
         server:
           extraArgs:
             - --auth-mode=server

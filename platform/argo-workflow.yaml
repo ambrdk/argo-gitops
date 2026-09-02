@@ -8,12 +8,17 @@ spec:
   source:
     repoURL: 'https://argoproj.github.io/argo-helm'
     chart: argo-workflows
-    targetRevision: 2.0.1
+    targetRevision: 2.0.3
     helm:
       values: |
         server:
           extraArgs:
             - --auth-mode=server
+          ingress:
+            enabled: true
+            ingressClassName: traefik
+            hosts:
+              - argo.localhost
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: argo

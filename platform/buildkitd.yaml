@@ -43,12 +43,12 @@ spec:
               containerPort: 1234
           readinessProbe:
             exec:
-              command: [buildctl, debug, workers]
+              command: [buildctl, --addr, tcp://127.0.0.1:1234, debug, workers]
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             exec:
-              command: [buildctl, debug, workers]
+              command: [buildctl, --addr, tcp://127.0.0.1:1234, debug, workers]
             initialDelaySeconds: 15
             periodSeconds: 30
           volumeMounts:

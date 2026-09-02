@@ -19,5 +19,4 @@ spec:
           valueFrom:
             event: payload.after
         - name: app_name
-          valueFrom:
-            event: payload.project.name
+          value: voximplant-deck-web

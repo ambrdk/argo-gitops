@@ -37,6 +37,8 @@ spec:
             template: git-clone
         - - name: build
             template: railpack-build
+        - - name: deploy
+            template: rollout-restart
 
     - name: git-clone
       script:
@@ -108,7 +110,7 @@ spec:
             --local dockerfile=/plan \
             --frontend=gateway.v0 \
             --opt source=ghcr.io/railwayapp/railpack-frontend \
-            --output type=image,name=k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}},push=true
+            --output type=image,"name=k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}},k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:develop",push=true
         resources:
           requests:
             cpu: 500m
@@ -119,3 +121,19 @@ spec:
         volumeMounts:
           - name: workspace
             mountPath: /workspace
+
+    - name: rollout-restart
+      resource:
+        action: patch
+        mergeStrategy: strategic
+        manifest: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: voximplant-deck-web
+            namespace: default
+          spec:
+            template:
+              metadata:
+                annotations:
+                  workflows.argoproj.io/built-commit: "{{workflow.parameters.commit_sha}}"

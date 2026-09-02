@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voximplant-deck-web
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: voximplant-deck-web
+  template:
+    metadata:
+      labels:
+        app: voximplant-deck-web
+    spec:
+      containers:
+        - name: web
+          image: k3d-registry.localhost:5000/devops/voximplant-deck-web:develop
+          imagePullPolicy: Always
+          env:
+            - name: PORT
+              value: "8080"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voximplant-deck-web
+  namespace: default
+spec:
+  selector:
+    app: voximplant-deck-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: voximplant-deck-web
+  namespace: default
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: deck.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: voximplant-deck-web
+                port:
+                  name: http
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-workflow-deployer
+  namespace: default
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-workflow-deployer
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argo-workflow-deployer
+subjects:
+  - kind: ServiceAccount
+    name: argo-workflow
+    namespace: argo

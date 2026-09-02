@@ -7,6 +7,10 @@ data:
   buildkitd.toml: |
     [worker.oci]
       enabled = true
+      gc = true
+      reservedSpace = "4GB"
+      maxUsedSpace = "14GB"
+      minFreeSpace = "3GB"
     [registry."k3d-registry.localhost:5000"]
       http = true
       insecure = true
@@ -38,6 +42,13 @@ spec:
             - /etc/buildkit/buildkitd.toml
           securityContext:
             privileged: true
+          resources:
+            requests:
+              cpu: "2"
+              memory: 3Gi
+            limits:
+              cpu: "2"
+              memory: 3Gi
           ports:
             - name: buildkit
               containerPort: 1234

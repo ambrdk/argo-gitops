@@ -5,6 +5,16 @@ metadata:
 spec:
   entrypoint: build-pipeline
   serviceAccountName: argo-workflow
+
+  ttlStrategy:
+    secondsAfterSuccess: 3600
+    secondsAfterFailure: 86400
+
+  podGC:
+    strategy: OnWorkflowSuccess
+
+  volumeClaimGC:
+    strategy: OnWorkflowCompletion
   arguments:
     parameters:
       - name: repo_url
@@ -52,6 +62,13 @@ spec:
           fi
           git clone {{workflow.parameters.repo_url}} .
           git checkout {{workflow.parameters.commit_sha}}
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
         volumeMounts:
           - name: workspace
             mountPath: /workspace
@@ -92,6 +109,13 @@ spec:
             --frontend=gateway.v0 \
             --opt source=ghcr.io/railwayapp/railpack-frontend \
             --output type=image,name=k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}},push=true
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
         volumeMounts:
           - name: workspace
             mountPath: /workspace

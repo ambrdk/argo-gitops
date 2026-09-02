@@ -11,6 +11,11 @@ spec:
       - name: commit_sha
       - name: app_name
 
+  volumes:
+    - name: buildkit-cache
+      persistentVolumeClaim:
+        claimName: buildkit-cache
+
   volumeClaimTemplates:
     - metadata:
         name: workspace
@@ -113,3 +118,5 @@ spec:
         volumeMounts:
           - name: workspace
             mountPath: /workspace
+          - name: buildkit-cache
+            mountPath: /var/lib/buildkit

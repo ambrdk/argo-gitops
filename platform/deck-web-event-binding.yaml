@@ -20,4 +20,4 @@ spec:
             event: payload.after
         - name: app_name
           valueFrom:
-            expression: "'voximplant-deck-web'"
+            event: payload.project.path_with_namespace

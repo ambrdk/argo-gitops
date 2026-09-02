@@ -85,7 +85,8 @@ spec:
             cpu: 100m
             memory: 128Mi
         source: |
-          apk add --no-cache curl jq >/dev/null
+          set -x
+          apk add --no-cache curl jq
 
           cat <<'FAILURES' > /tmp/failures.json
           {{inputs.parameters.failures}}

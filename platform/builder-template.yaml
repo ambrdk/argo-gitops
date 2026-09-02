@@ -39,9 +39,15 @@ spec:
                 name: git-credentials
                 key: token
                 optional: true
+          - name: GIT_USER
+            valueFrom:
+              secretKeyRef:
+                name: git-credentials
+                key: username
+                optional: true
         source: |
           if [ -n "$GIT_TOKEN" ]; then
-            git config --global url."https://oauth2:${GIT_TOKEN}@git.zingaya.com/".insteadOf "https://git.zingaya.com/"
+            git config --global url."https://${GIT_USER:-oauth2}:${GIT_TOKEN}@git.zingaya.com/".insteadOf "https://git.zingaya.com/"
           fi
           git clone {{workflow.parameters.repo_url}} .
           git checkout {{workflow.parameters.commit_sha}}

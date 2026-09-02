@@ -15,7 +15,6 @@ spec:
     spec:
       containers:
         - name: web
-          # Argo CD возьмет образ прямо из нашего локального k3d реестра
           image: k3d-registry.localhost:5000/demo-node-app:main
           imagePullPolicy: Always
           env:

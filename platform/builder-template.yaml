@@ -4,6 +4,7 @@ metadata:
   name: universal-vercel-like-builder
 spec:
   entrypoint: build-pipeline
+  serviceAccountName: argo-workflow
   arguments:
     parameters:
       - name: repo_url

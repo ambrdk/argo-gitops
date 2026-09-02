@@ -19,7 +19,6 @@ spec:
             ingressClassName: traefik
             hosts:
               - argo.localhost
-              - 192.168.140.88
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: argo

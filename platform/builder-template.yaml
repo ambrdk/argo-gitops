@@ -11,9 +11,6 @@ spec:
     secondsAfterSuccess: 3600
     secondsAfterFailure: 86400
 
-  podGC:
-    strategy: OnWorkflowSuccess
-
   volumeClaimGC:
     strategy: OnWorkflowCompletion
   arguments:
@@ -85,13 +82,14 @@ spec:
             cpu: 100m
             memory: 128Mi
         source: |
-          set -x
-          apk add --no-cache curl jq
+          apk add --no-cache curl jq >/dev/null
 
-          cat <<'FAILURES' > /tmp/failures.json
+          cat <<'FAILURES' > /tmp/failures.raw
           {{inputs.parameters.failures}}
           FAILURES
-          cat /tmp/failures.json
+
+          jq 'if type == "string" then fromjson else . end' /tmp/failures.raw > /tmp/failures.json || echo '[]' > /tmp/failures.json
+          echo "failures: $(cat /tmp/failures.json)"
 
           API=https://git.zingaya.com/api/v4/projects/{{workflow.parameters.project_id}}
           SHA={{workflow.parameters.commit_sha}}

@@ -11,11 +11,6 @@ spec:
       - name: commit_sha
       - name: app_name
 
-  volumes:
-    - name: buildkit-cache
-      persistentVolumeClaim:
-        claimName: buildkit-cache
-
   volumeClaimTemplates:
     - metadata:
         name: workspace
@@ -63,15 +58,16 @@ spec:
 
     - name: railpack-build
       script:
-        image: moby/buildkit:latest
-        securityContext:
-          privileged: true
+        image: moby/buildkit:v0.27.1
         workingDir: /workspace
         command: [sh]
+        env:
+          - name: BUILDKIT_HOST
+            value: tcp://buildkitd.argo.svc.cluster.local:1234
         source: |
           set -e
           echo "===> Installing base packages..."
-          apk add --no-cache curl bash git tar ca-certificates
+          apk add --no-cache curl tar ca-certificates
 
           echo "===> Downloading Railpack binary..."
           ARCH=$(uname -m)
@@ -85,31 +81,12 @@ spec:
           curl -sSL "$URL" | tar -xz -C /usr/local/bin
           chmod +x /usr/local/bin/railpack
 
-          echo "===> Configuring BuildKit for local insecure registry..."
-          mkdir -p /etc/buildkit
-          cat <<EOF > /etc/buildkit/buildkitd.toml
-          [registry."k3d-registry.localhost:5000"]
-            http = true
-            insecure = true
-          EOF
-
-          echo "===> Starting BuildKit daemon..."
-          buildkitd --config /etc/buildkit/buildkitd.toml --addr tcp://127.0.0.1:1234 &
-
-          for i in $(seq 1 30); do
-            if nc -z 127.0.0.1 1234 2>/dev/null; then
-              echo "BuildKit daemon is ready!"
-              break
-            fi
-            sleep 1
-          done
-
           echo "===> Generating Railpack build plan..."
           mkdir -p /plan
           railpack plan . -o /plan/railpack-plan.json
 
           echo "===> Building and pushing image with buildctl..."
-          buildctl --addr tcp://127.0.0.1:1234 build \
+          buildctl build \
             --local context=. \
             --local dockerfile=/plan \
             --frontend=gateway.v0 \
@@ -118,5 +95,3 @@ spec:
         volumeMounts:
           - name: workspace
             mountPath: /workspace
-          - name: buildkit-cache
-            mountPath: /var/lib/buildkit

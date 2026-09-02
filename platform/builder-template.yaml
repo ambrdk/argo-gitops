@@ -110,7 +110,7 @@ spec:
             --local dockerfile=/plan \
             --frontend=gateway.v0 \
             --opt source=ghcr.io/railwayapp/railpack-frontend \
-            --output type=image,"name=k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}},k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:develop",push=true
+            --output 'type=image,"name=k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}},k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:develop",push=true'
         resources:
           requests:
             cpu: 500m

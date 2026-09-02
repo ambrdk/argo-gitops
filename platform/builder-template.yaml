@@ -32,7 +32,17 @@ spec:
         image: alpine/git:latest
         workingDir: /workspace
         command: [sh, -ebc]
+        env:
+          - name: GIT_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: git-credentials
+                key: token
+                optional: true
         source: |
+          if [ -n "$GIT_TOKEN" ]; then
+            git config --global url."https://oauth2:${GIT_TOKEN}@git.zingaya.com/".insteadOf "https://git.zingaya.com/"
+          fi
           git clone {{workflow.parameters.repo_url}} .
           git checkout {{workflow.parameters.commit_sha}}
         volumeMounts:
@@ -66,7 +76,7 @@ spec:
           echo "===> Configuring BuildKit for local insecure registry..."
           mkdir -p /etc/buildkit
           cat <<EOF > /etc/buildkit/buildkitd.toml
-          [registry."192.168.97.4:5000"]
+          [registry."k3d-registry.localhost:5000"]
             http = true
             insecure = true
           EOF
@@ -92,7 +102,7 @@ spec:
             --local dockerfile=/plan \
             --frontend=gateway.v0 \
             --opt source=ghcr.io/railwayapp/railpack-frontend \
-            --output type=image,name=192.168.97.4:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}},push=true
+            --output type=image,name=k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}},push=true
         volumeMounts:
           - name: workspace
             mountPath: /workspace

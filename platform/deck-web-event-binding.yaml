@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowEventBinding
+metadata:
+  name: deck-web-push
+  namespace: argo
+spec:
+  event:
+    selector: discriminator == "deck-web" && payload.object_kind == "push"
+  submit:
+    workflowTemplateRef:
+      name: universal-vercel-like-builder
+      clusterScope: true
+    arguments:
+      parameters:
+        - name: repo_url
+          valueFrom:
+            event: payload.project.git_http_url
+        - name: commit_sha
+          valueFrom:
+            event: payload.after
+        - name: app_name
+          valueFrom:
+            event: payload.project.name

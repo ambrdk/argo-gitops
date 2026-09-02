@@ -4,6 +4,7 @@ metadata:
   name: universal-vercel-like-builder
 spec:
   entrypoint: build-pipeline
+  onExit: exit-handler
   serviceAccountName: argo-workflow
 
   ttlStrategy:
@@ -20,6 +21,8 @@ spec:
       - name: repo_url
       - name: commit_sha
       - name: app_name
+      - name: project_id
+      - name: event_kind
 
   volumeClaimTemplates:
     - metadata:
@@ -33,12 +36,106 @@ spec:
   templates:
     - name: build-pipeline
       steps:
+        - - name: notify-running
+            template: report-status
+            arguments:
+              parameters:
+                - name: state
+                  value: running
+                - name: failures
+                  value: "[]"
         - - name: clone
             template: git-clone
         - - name: build
             template: railpack-build
         - - name: deploy
             template: rollout-restart
+            when: "{{workflow.parameters.event_kind}} == push"
+
+    - name: exit-handler
+      steps:
+        - - name: report
+            template: report-status
+            arguments:
+              parameters:
+                - name: state
+                  value: "{{workflow.status}}"
+                - name: failures
+                  value: "{{workflow.failures}}"
+
+    - name: report-status
+      inputs:
+        parameters:
+          - name: state
+          - name: failures
+      script:
+        image: alpine:3.22
+        command: [sh, -e]
+        env:
+          - name: GITLAB_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: gitlab-api
+                key: token
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        source: |
+          apk add --no-cache curl jq >/dev/null
+
+          cat <<'FAILURES' > /tmp/failures.json
+          {{inputs.parameters.failures}}
+          FAILURES
+
+          API=https://git.zingaya.com/api/v4/projects/{{workflow.parameters.project_id}}
+          SHA={{workflow.parameters.commit_sha}}
+          UI=http://argo.localhost/workflows/argo/{{workflow.name}}
+
+          case "{{inputs.parameters.state}}" in
+            running)
+              STATE=running
+              DESC="сборка запущена"
+              ;;
+            Succeeded)
+              STATE=success
+              DESC="образ собран и выкачен"
+              ;;
+            *)
+              STATE=failed
+              DESC=$(jq -r '.[0].message // "сборка упала"' /tmp/failures.json 2>/dev/null | cut -c1-250)
+              ;;
+          esac
+
+          curl -sSf -X POST -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+            --data-urlencode "state=$STATE" \
+            --data-urlencode "name=argo/build" \
+            --data-urlencode "description=$DESC" \
+            --data-urlencode "target_url=$UI" \
+            "$API/statuses/$SHA" > /dev/null
+
+          [ "$STATE" = failed ] || exit 0
+
+          POD=$(jq -r '.[0].podName // empty' /tmp/failures.json 2>/dev/null)
+          [ -n "$POD" ] || exit 0
+
+          SA=/var/run/secrets/kubernetes.io/serviceaccount
+          LOG=$(curl -sS --cacert $SA/ca.crt -H "Authorization: Bearer $(cat $SA/token)" \
+            "https://kubernetes.default.svc/api/v1/namespaces/argo/pods/$POD/log?container=main&tailLines=200" || true)
+          [ -n "$LOG" ] || exit 0
+
+          {
+            printf '### argo/build упал\n\n'
+            printf 'Шаг `%s`, последние 200 строк:\n\n' "$(jq -r '.[0].displayName // "?"' /tmp/failures.json)"
+            printf '```\n%s\n```\n' "$LOG"
+          } > /tmp/note.md
+
+          curl -sSf -X POST -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+            --data-urlencode "note@/tmp/note.md" \
+            "$API/repository/commits/$SHA/comments" > /dev/null
 
     - name: git-clone
       script:
@@ -104,13 +201,19 @@ spec:
           mkdir -p /plan
           railpack plan . -o /plan/railpack-plan.json
 
+          IMG=k3d-registry.localhost:5000/{{workflow.parameters.app_name}}
+          NAMES="$IMG:{{workflow.parameters.commit_sha}}"
+          if [ "{{workflow.parameters.event_kind}}" = push ]; then
+            NAMES="$NAMES,$IMG:develop"
+          fi
+
           echo "===> Building and pushing image with buildctl..."
           buildctl build \
             --local context=. \
             --local dockerfile=/plan \
             --frontend=gateway.v0 \
             --opt source=ghcr.io/railwayapp/railpack-frontend \
-            --output 'type=image,"name=k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:{{workflow.parameters.commit_sha}},k3d-registry.localhost:5000/{{workflow.parameters.app_name}}:develop",push=true'
+            --output "type=image,\"name=$NAMES\",push=true"
         resources:
           requests:
             cpu: 500m

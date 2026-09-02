@@ -1,14 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowEventBinding
 metadata:
-  name: deck-web-push
+  name: deck-web-mr
   namespace: argo
 spec:
   event:
     selector: >
-      discriminator == "deck-web" &&
-      payload.object_kind == "push" &&
-      payload.ref == "refs/heads/develop"
+      discriminator == "deck-web-mr" &&
+      payload.object_kind == "merge_request" &&
+      payload.object_attributes.action in ["open", "reopen", "update"]
   submit:
     workflowTemplateRef:
       name: universal-vercel-like-builder
@@ -20,7 +20,7 @@ spec:
             event: payload.project.git_http_url
         - name: commit_sha
           valueFrom:
-            event: payload.after
+            event: payload.object_attributes.last_commit.id
         - name: app_name
           valueFrom:
             event: payload.project.path_with_namespace

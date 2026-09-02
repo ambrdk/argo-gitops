@@ -33,20 +33,45 @@ spec:
   templates:
     - name: build-pipeline
       steps:
-        - - name: notify-running
-            template: report-status
+        - - name: notify-start
+            template: set-status
             arguments:
               parameters:
-                - name: state
-                  value: running
-                - name: failures
-                  value: "[]"
+                - name: spec
+                  value: "clone:running build:pending deploy:pending"
         - - name: clone
             template: git-clone
+        - - name: notify-build
+            template: set-status
+            arguments:
+              parameters:
+                - name: spec
+                  value: "clone:success build:running"
         - - name: build
             template: railpack-build
+        - - name: notify-deploy
+            template: set-status
+            arguments:
+              parameters:
+                - name: spec
+                  value: "build:success deploy:running"
+            when: "{{workflow.parameters.event_kind}} == push"
+        - - name: notify-skip
+            template: set-status
+            arguments:
+              parameters:
+                - name: spec
+                  value: "build:success deploy:skipped"
+            when: "{{workflow.parameters.event_kind}} != push"
         - - name: deploy
             template: rollout-restart
+            when: "{{workflow.parameters.event_kind}} == push"
+        - - name: notify-done
+            template: set-status
+            arguments:
+              parameters:
+                - name: spec
+                  value: "deploy:success"
             when: "{{workflow.parameters.event_kind}} == push"
 
     - name: exit-handler
@@ -59,6 +84,44 @@ spec:
                   value: "{{workflow.status}}"
                 - name: failures
                   value: "{{workflow.failures}}"
+
+    - name: set-status
+      inputs:
+        parameters:
+          - name: spec
+      script:
+        image: curlimages/curl:8.20.0
+        command: [sh, -e]
+        env:
+          - name: GITLAB_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: gitlab-api
+                key: token
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
+        source: |
+          API=https://git.zingaya.com/api/v4/projects/{{workflow.parameters.project_id}}
+          SHA={{workflow.parameters.commit_sha}}
+          UI=http://argo.localhost/workflows/argo/{{workflow.name}}
+
+          for PAIR in {{inputs.parameters.spec}}; do
+            JOB=${PAIR%%:*}
+            STATE=${PAIR##*:}
+            CODE=$(curl -sS -o /tmp/resp -w '%{http_code}' -X POST \
+              -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+              --data-urlencode "state=$STATE" \
+              --data-urlencode "name=argo/$JOB" \
+              --data-urlencode "target_url=$UI" \
+              "$API/statuses/$SHA")
+            echo "argo/$JOB -> $STATE : $CODE"
+            [ "$CODE" -lt 300 ] || cat /tmp/resp
+          done
 
     - name: report-status
       inputs:
@@ -105,11 +168,6 @@ spec:
               "$API/statuses/$SHA")
             [ "$CODE" -lt 300 ] || echo "argo/$1 -> $2 отклонён: $CODE $(cat /tmp/resp.json)"
           }
-
-          if [ "{{inputs.parameters.state}}" = running ]; then
-            for J in clone build deploy; do set_status "$J" pending "в очереди"; done
-            exit 0
-          fi
 
           FAILED=$(jq -r '.[0].displayName // empty' /tmp/failures.json || true)
           MSG=$(jq -r '.[0].message // empty' /tmp/failures.json | cut -c1-250 || true)

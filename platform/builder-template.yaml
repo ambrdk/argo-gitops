@@ -97,7 +97,7 @@ spec:
 
           case "{{inputs.parameters.state}}" in
             running)
-              STATE=running
+              STATE=pending
               DESC="сборка запущена"
               ;;
             Succeeded)
@@ -110,12 +110,17 @@ spec:
               ;;
           esac
 
-          curl -sSf -X POST -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+          CODE=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -X POST -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
             --data-urlencode "state=$STATE" \
             --data-urlencode "name=argo/build" \
             --data-urlencode "description=$DESC" \
             --data-urlencode "target_url=$UI" \
-            "$API/statuses/$SHA" > /dev/null
+            "$API/statuses/$SHA")
+          if [ "$CODE" -ge 300 ]; then
+            echo "status api $CODE: $(cat /tmp/resp.json)"
+            echo "отчёт в GitLab не удался, конвейер продолжаем"
+            exit 0
+          fi
 
           [ "$STATE" = failed ] || exit 0
 
